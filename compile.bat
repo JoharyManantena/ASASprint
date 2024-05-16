@@ -1,37 +1,44 @@
 @echo off
 
-rem Chemin vers temp
-set tempsrc = tempsrc
+rem Chemin vers repertoire de temp
+set tempsrc=tempsrc
 
-set Salass = SalassFramework
+rem Nom du FrameWork
+set Sals=Sals
+set controller=prom16
 
-if exist "lib/%Salass%.jar" {
-    rd /S /Q "lib/%Salass%"
-    echo  %Salass% supprimes
-}
+rem Suppresion des anciens FrameWork dans lib
+if exist "lib/%Sals%.jar" (
+    rd /S /Q "lib/%Sals%.jar"
+    echo Le dossier lib/%Sals%.jar et son contenu ont ete supprimes avec succes.
+)
 
 mkdir "%tempsrc%" 
-rem Cpoie des sources
+echo Le nouveau dossier %tempsrc% a ete cree avec succes.
+
+rem Copie les sources dans le tempsrc
 for /r "src" %%f in (*.java) do copy "%%f" "%tempsrc%"
 
-rem Compilation
-javac -cp "lib/*" -d  "%Salass%" "%tempsrc%\*.java"
+rem Compilation de tous les fichiers Java du répertoire tempsrc
+for %%i in ("%tempsrc%\*.java") do javac -cp "lib/*" -d "." "%%i"jghgj
 
-rem Compression en jar
-jar -cf "%Salass%.jar" "%Salass%"
+rem Decompresser en jar
+jar -cf "%Sals%.jar" "%controller%"
 
-rem suppression du dossier Framework
-if exist "%Salass%" {
-    rd /S /Q  "%Salass%"
-    echo DOssier %Salass% et son contenu sont tous supprimer
-}
+rem Suppression du dossier controller et tempsrc
+if exist "%controller%" (
+    rd /S /Q "%controller%"
+    echo Le dossier %controller% et son contenu ont ete supprimes avec succes.
+)
 
-if exist "%tempsrc%" {
+if exist "%tempsrc%" (
     rd /S /Q "%tempsrc%"
-    echo Dossier supprime avec ces contenue
-}
+    echo Le dossier %tempsrc% et son contenu ont ete supprimes avec succes.
+)
 
-rem Deplacement des fichier JAR
-move "%Salass%".jar "lib/"
- 
+rem Déplace le fichier JAR vers le lib
+move "%Sals%.jar" "lib/"
+
+
+
 pause

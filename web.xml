@@ -1,0 +1,4 @@
+<context-param>
+    <param-name>namePath</param-name>
+    <param-value>prom16.annotation.controllers</param-value>
+</context-param>
