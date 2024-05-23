@@ -1,26 +1,49 @@
-package prom16.annotation;
+package prom16.controller;
 
-import java.io.*;
-import java.net.*;
-import java.util.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.lang.reflect.Method;
+import java.net.URLDecoder;
+import java.util.HashMap;
+import java.util.Map;
 
 import prom16.annotation.Annoter;
-import jakarta.servlet.*;
-import jakarta.servlet.http.*;
+import prom16.annotation.Get;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 public class FrontController extends HttpServlet {
-    private boolean scanner = false;
-    private List<String> nameControlleurs;
     private String controllerPackage;
+    private HashMap<String , Mapping> liste = new HashMap<String , Mapping>();
+
+    public HashMap<String , Mapping> getListe() {
+        return liste;
+    }
+
+    public void setListe(HashMap<String , Mapping> liste) {
+        this.liste = liste;
+    }
 
     @Override
     public void init() throws ServletException {
         this.setControllerPackage(getServletConfig().getInitParameter("namePath"));
+        this.setListe(scan(getServletContext(), this.getControllerPackage(), this.getListe()));
         super.init();
     }
 
-    public static List<String> scanPackageForControllers(ServletContext context , String packageName) {
-        List<String> controllerClassNames = new ArrayList<>();
+    public String getControllerPackage() {
+        return controllerPackage;
+    }
+
+    public void setControllerPackage(String controllerPackage) {
+        this.controllerPackage = controllerPackage;
+    }
+
+    public static HashMap<String , Mapping> scan(ServletContext context , String packageName , HashMap<String , Mapping> boite) {
         try {
             String classesPath = context.getRealPath("/WEB-INF/classes");
             String decodedPath = URLDecoder.decode(classesPath, "UTF-8");
@@ -33,7 +56,13 @@ public class FrontController extends HttpServlet {
                         String className = packageName+"."+file.getName().substring(0, file.getName().length()-6);
                         Class<?> clazz = Class.forName(className);
                         if (isController(clazz)) {
-                            controllerClassNames.add(className);
+                            Method[] listeMethod = clazz.getDeclaredMethods();
+                            for (int i = 0; i < listeMethod.length; i++) {
+                                if (listeMethod[i].isAnnotationPresent(Get.class)) {
+                                    Mapping map = new Mapping(className, listeMethod[i].getName());
+                                    boite.put(listeMethod[i].getAnnotation(Get.class).value(), map);
+                                }
+                            }
                         }
                     }
                 }
@@ -41,29 +70,32 @@ public class FrontController extends HttpServlet {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return controllerClassNames;
+        return boite;
     }
 
     private static boolean isController(Class<?> clazz) {
-        return clazz.isAnnotationPresent(AnnotationControlleur.class);
+        return clazz.isAnnotationPresent(Annoter.class);
     }
-
 
     protected void processRequest(HttpServletRequest req , HttpServletResponse res) throws ServletException , IOException {
         PrintWriter out = res.getWriter();
-        String valiny = "Tous les listes des controlleurs dans votre projet sont:\n ";
-        if (!isScanner()) {
-            this.setNameControlleurs(scanPackageForControllers(getServletContext(),this.getControllerPackage()));
-            for (int i = 0; i < getNameControlleurs().size(); i++) {
-                valiny += "\t" + getNameControlleurs().get(i);
-            }
-            setScanner(true);
-        }else{
-            for (int i = 0; i < getNameControlleurs().size(); i++) {
-                valiny += "\t" + getNameControlleurs().get(i);
+        String vali = "";
+        String url = req.getRequestURI();
+        String nameProjet = req.getContextPath();
+        int test = 0;
+        for (Map.Entry<String, Mapping> entry : this.getListe().entrySet()) {
+            String key = nameProjet + entry.getKey();
+            Mapping value = entry.getValue();
+
+            if (key.equals(url)) {
+                test++;
+                vali += "Lien : "+ req.getRequestURL() + " ::: ControllerName : "+ value.getClassName() + " with Method "+ value.getMethodName() ;
             }
         }
-        out.println(valiny);
+        if (test == 0) {
+            vali += " NO Method ek " + req.getRequestURL();
+        }
+        out.println(vali);
     }
 
     @Override
