@@ -20,7 +20,7 @@ rem Copie les sources dans le tempsrc
 for /r "src" %%f in (*.java) do copy "%%f" "%tempsrc%"
 
 rem Compilation de tous les fichiers Java du répertoire tempsrc
-for %%i in ("%tempsrc%\*.java") do javac -cp "lib/*" -d "." "%%i"jghgj
+for %%i in ("%tempsrc%\*.java") do javac -cp "lib/*" -d "." "%%i"
 
 rem Decompresser en jar
 jar -cf "%Sals%.jar" "%controller%"
@@ -38,6 +38,10 @@ if exist "%tempsrc%" (
 
 rem Déplace le fichier JAR vers le lib
 move "%Sals%.jar" "lib/"
+echo Librairir %Sals% deplace avec success 
+if exist "%Sals%" (
+    echo La librairie %Sals% cree sans problem.
+)
 
 
 

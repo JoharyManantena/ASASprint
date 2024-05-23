@@ -1,4 +1,16 @@
-<context-param>
-    <param-name>namePath</param-name>
-    <param-value>prom16.annotation.controllers</param-value>
-</context-param>
+<web-app>
+    <servlet>
+        <servlet-name>FrontController</servlet-name>
+        <servlet-class>prom16.controller.FrontController</servlet-class>
+        <init-param>
+            <param-name>namePath</param-name>
+            <param-value>prom16.annotation.controllers</param-value>
+        </init-param>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>FrontController</servlet-name>
+        <url-pattern>/front/*</url-pattern>
+    </servlet-mapping>
+</web-app>
