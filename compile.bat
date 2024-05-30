@@ -38,11 +38,9 @@ if exist "%tempsrc%" (
 
 rem Déplace le fichier JAR vers le lib
 move "%Sals%.jar" "lib/"
-echo Librairir %Sals% deplace avec success 
+echo Lib %Sals% deplace avec success 
 if exist "%Sals%" (
     echo La librairie %Sals% cree sans problem.
 )
-
-
 
 pause

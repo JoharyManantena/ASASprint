@@ -1,20 +1,14 @@
 package prom16.controller;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.lang.reflect.Method;
 import java.net.URLDecoder;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
-import prom16.annotation.Annoter;
-import prom16.annotation.Get;
-import jakarta.servlet.ServletContext;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import prom16.annotation.*;
+import prom16.fonction.Reflect;
+import jakarta.servlet.*;
+import jakarta.servlet.http.*;
 
 public class FrontController extends HttpServlet {
     private String controllerPackage;
@@ -53,7 +47,7 @@ public class FrontController extends HttpServlet {
                 File[] classFiles = packageDirectory.listFiles((dir, name) -> name.endsWith(".class"));
                 if (classFiles != null) {
                     for (File file : classFiles) {
-                        String className = packageName+"."+file.getName().substring(0, file.getName().length()-6);
+                        String className = packageName + "." + file.getName().substring(0, file.getName().length() - 6);
                         Class<?> clazz = Class.forName(className);
                         if (isController(clazz)) {
                             Method[] listeMethod = clazz.getDeclaredMethods();
@@ -79,7 +73,7 @@ public class FrontController extends HttpServlet {
 
     protected void processRequest(HttpServletRequest req , HttpServletResponse res) throws ServletException , IOException {
         PrintWriter out = res.getWriter();
-        String vali = "";
+        String valiny ="";
         String url = req.getRequestURI();
         String nameProjet = req.getContextPath();
         int test = 0;
@@ -89,13 +83,25 @@ public class FrontController extends HttpServlet {
 
             if (key.equals(url)) {
                 test++;
-                vali += "Lien : "+ req.getRequestURL() + " ::: ControllerName : "+ value.getClassName() + " with Method "+ value.getMethodName() ;
+                try {
+                    Class<?> obj = Class.forName(value.getClassName());
+                    Object objInstance = obj.getDeclaredConstructor().newInstance(); 
+                    String reponse = Reflect.execMethodeController(objInstance, value.getMethodName(), null);
+                    valiny += reponse;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    StringWriter sw = new StringWriter();
+                    PrintWriter pw = new PrintWriter(sw);
+                    e.printStackTrace(pw);
+                    String stackTrace = sw.toString();
+                    valiny += "\n Exception: " + e.toString() + "\n" + stackTrace;
+                }
             }
         }
         if (test == 0) {
-            vali += " NO Method ek " + req.getRequestURL();
+            valiny += "NO Method !!! " + req.getRequestURL();
         }
-        out.println(vali);
+        out.println(valiny);
     }
 
     @Override
