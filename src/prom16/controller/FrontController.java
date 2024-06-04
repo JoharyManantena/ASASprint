@@ -1,14 +1,23 @@
 package prom16.controller;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.reflect.Method;
 import java.net.URLDecoder;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
-import prom16.annotation.*;
+import prom16.annotation.Annoter;
+import prom16.annotation.Get;
+import prom16.fonction.ModelView;
 import prom16.fonction.Reflect;
-import jakarta.servlet.*;
-import jakarta.servlet.http.*;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 public class FrontController extends HttpServlet {
     private String controllerPackage;
@@ -47,7 +56,7 @@ public class FrontController extends HttpServlet {
                 File[] classFiles = packageDirectory.listFiles((dir, name) -> name.endsWith(".class"));
                 if (classFiles != null) {
                     for (File file : classFiles) {
-                        String className = packageName + "." + file.getName().substring(0, file.getName().length() - 6);
+                        String className = packageName+"."+file.getName().substring(0, file.getName().length()-6);
                         Class<?> clazz = Class.forName(className);
                         if (isController(clazz)) {
                             Method[] listeMethod = clazz.getDeclaredMethods();
@@ -87,7 +96,20 @@ public class FrontController extends HttpServlet {
                     Class<?> obj = Class.forName(value.getClassName());
                     Object objInstance = obj.getDeclaredConstructor().newInstance(); 
                     String reponse = Reflect.execMethodeController(objInstance, value.getMethodName(), null);
-                    valiny += reponse;
+                    if (reponse.compareTo("prom16.fonction.ModelView")==0) {
+                        ModelView mv = (ModelView)Reflect.execMethode(objInstance, value.getMethodName(), null);
+                        String cleHash ="";
+                        Object valueHash = new Object();
+                        for (String cles : mv.getData().keySet()) {
+                            cleHash = cles;
+                            valueHash = mv.getData().get(cles);
+                            break;
+                        }
+                        req.setAttribute(cleHash, valueHash);
+                        req.getServletContext().getRequestDispatcher(mv.getUrl()).forward(req, res);
+                    }else{
+                        valiny += reponse;
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                     StringWriter sw = new StringWriter();
@@ -99,7 +121,7 @@ public class FrontController extends HttpServlet {
             }
         }
         if (test == 0) {
-            valiny += "NO Method !!! " + req.getRequestURL();
+            valiny += "Il n'y a pas de methodes associer a cette chemin " + req.getRequestURL();
         }
         out.println(valiny);
     }
