@@ -46,9 +46,10 @@ public class Reflect {
         Object result = method.invoke(obj, parametre);
         if (result instanceof String) {
             return (String) result;
-        } else {
+        }
+         else {
             String valiny = "";
-            if (result.getClass().getTypeName().compareTo("prom16.fonction.ModelView")==0) {
+            if (result.getClass().getTypeName().compareTo("prom16.fonction.ModelView") == 0) {
                 valiny = result.getClass().getTypeName();
             }
             else{
