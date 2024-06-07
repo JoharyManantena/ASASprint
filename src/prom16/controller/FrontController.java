@@ -3,16 +3,15 @@ package prom16.controller;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.lang.reflect.Method;
 import java.net.URLDecoder;
 import java.util.HashMap;
 import java.util.Map;
 
-import prom16.annotation.Annoter;
+import prom16.annotation.AnnotationControlleur;
 import prom16.annotation.Get;
 import prom16.fonction.ModelView;
-import prom16.fonction.Reflect;
+import prom16.fonction.Reflection;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -22,6 +21,24 @@ import jakarta.servlet.http.HttpServletResponse;
 public class FrontController extends HttpServlet {
     private String controllerPackage;
     private HashMap<String , Mapping> liste = new HashMap<String , Mapping>();
+    private Exception errorPackage = new Exception("null");
+    private Exception errorLien = new Exception("null");
+
+    public Exception getErrorLien() {
+        return errorLien;
+    }
+
+    public void setErrorLien(Exception errorLien) {
+        this.errorLien = errorLien;
+    }
+
+    public Exception getErrorPackage() {
+        return errorPackage;
+    }
+
+    public void setErrorPackage(Exception errorPackage) {
+        this.errorPackage = errorPackage;
+    }
 
     public HashMap<String , Mapping> getListe() {
         return liste;
@@ -34,7 +51,7 @@ public class FrontController extends HttpServlet {
     @Override
     public void init() throws ServletException {
         this.setControllerPackage(getServletConfig().getInitParameter("namePath"));
-        this.setListe(scan(getServletContext(), this.getControllerPackage(), this.getListe()));
+        this.scan(getServletContext());
         super.init();
     }
 
@@ -46,7 +63,9 @@ public class FrontController extends HttpServlet {
         this.controllerPackage = controllerPackage;
     }
 
-    public static HashMap<String , Mapping> scan(ServletContext context , String packageName , HashMap<String , Mapping> boite) {
+    public void scan(ServletContext context) {
+        HashMap<String , Mapping> boite = new HashMap<>();
+        String packageName = this.getControllerPackage();
         try {
             String classesPath = context.getRealPath("/WEB-INF/classes");
             String decodedPath = URLDecoder.decode(classesPath, "UTF-8");
@@ -60,44 +79,48 @@ public class FrontController extends HttpServlet {
                         Class<?> clazz = Class.forName(className);
                         if (isController(clazz)) {
                             Method[] listeMethod = clazz.getDeclaredMethods();
-                            for (int i = 0; i < listeMethod.length; i++) {
-                                if (listeMethod[i].isAnnotationPresent(Get.class)) {
-                                    Mapping map = new Mapping(className, listeMethod[i].getName());
-                                    boite.put(listeMethod[i].getAnnotation(Get.class).value(), map);
+                            for (Method method : listeMethod) {
+                                if (method.isAnnotationPresent(Get.class)) {
+                                    String key = method.getAnnotation(Get.class).value();
+                                    if (boite.containsKey(key)) {
+                                        throw new Exception("Erreur : Deux URL qui sont pareil sur cette lien " + key);
+                                    }
+                                    Mapping map = new Mapping(className, method.getName());
+                                    boite.put(key, map);
                                 }
                             }
                         }
                     }
                 }
             } 
+            else{
+                this.setErrorPackage(new Exception("Erreur Package non existant "+ packageName));
+            }
         } catch (Exception e) {
-            e.printStackTrace();
+            this.setErrorLien(e);
         }
-        return boite;
+        this.setListe(boite);
     }
 
     private static boolean isController(Class<?> clazz) {
-        return clazz.isAnnotationPresent(Annoter.class);
+        return clazz.isAnnotationPresent(AnnotationControlleur.class);
     }
 
-    protected void processRequest(HttpServletRequest req , HttpServletResponse res) throws ServletException , IOException {
-        PrintWriter out = res.getWriter();
-        String valiny ="";
+    private String traitement(String description,HttpServletRequest req , HttpServletResponse res)throws Exception{
         String url = req.getRequestURI();
         String nameProjet = req.getContextPath();
         int test = 0;
         for (Map.Entry<String, Mapping> entry : this.getListe().entrySet()) {
             String key = nameProjet + entry.getKey();
             Mapping value = entry.getValue();
-
             if (key.equals(url)) {
                 test++;
                 try {
                     Class<?> obj = Class.forName(value.getClassName());
                     Object objInstance = obj.getDeclaredConstructor().newInstance(); 
-                    String reponse = Reflect.execMethodeController(objInstance, value.getMethodName(), null);
+                    String reponse = Reflection.execMethodeController(objInstance, value.getMethodName(), null);
                     if (reponse.compareTo("prom16.fonction.ModelView")==0) {
-                        ModelView mv = (ModelView)Reflect.execMethode(objInstance, value.getMethodName(), null);
+                        ModelView mv = (ModelView)Reflection.execMethode(objInstance, value.getMethodName(), null);
                         String cleHash ="";
                         Object valueHash = new Object();
                         for (String cles : mv.getData().keySet()) {
@@ -108,20 +131,36 @@ public class FrontController extends HttpServlet {
                         req.setAttribute(cleHash, valueHash);
                         req.getServletContext().getRequestDispatcher(mv.getUrl()).forward(req, res);
                     }else{
-                        valiny += reponse;
+                        description += reponse;
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
-                    StringWriter sw = new StringWriter();
-                    PrintWriter pw = new PrintWriter(sw);
-                    e.printStackTrace(pw);
-                    String stackTrace = sw.toString();
-                    valiny += "\n Exception: " + e.toString() + "\n" + stackTrace;
-                }
+                    throw new Exception(e.getMessage());
+                }       
             }
         }
         if (test == 0) {
-            valiny += "Il n'y a pas de methodes associer a cette chemin " + req.getRequestURL();
+            throw new Exception("Lien inexistante : Il n'y a pas de methodes associer a cette chemin " + req.getRequestURL());
+        }
+        return description;
+    }
+
+    protected void processRequest(HttpServletRequest req , HttpServletResponse res) throws ServletException , IOException {
+        PrintWriter out = res.getWriter();
+        String valiny ="";
+        if (this.getErrorPackage().getMessage().compareTo("null")==0 && this.getErrorLien().getMessage().compareTo("null")==0) {
+            try {
+                valiny = traitement(valiny, req, res);
+            } catch (Exception e) {
+                valiny = e.getMessage();
+            }
+        }
+        else{
+            if (this.getErrorPackage().getMessage().compareTo("null")==0) {
+                valiny = this.getErrorLien().getMessage();
+            }
+            else{
+                valiny = this.getErrorPackage().getMessage();
+            }
         }
         out.println(valiny);
     }
