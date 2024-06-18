@@ -10,8 +10,7 @@ public class ModelView {
         this.setUrl(url);
     }
 
-    public ModelView() {
-    }
+    public ModelView() {}
 
     public HashMap<String, Object> getData() {
         return data;
