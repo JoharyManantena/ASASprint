@@ -8,10 +8,10 @@ import java.net.URLDecoder;
 import java.util.HashMap;
 import java.util.Map;
 
-import prom16.annotation.AnnotationControlleur;
+import prom16.annotation.Annoter;
 import prom16.annotation.Get;
 import prom16.fonction.ModelView;
-import prom16.fonction.Reflection;
+import prom16.fonction.Reflect;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -103,7 +103,7 @@ public class FrontController extends HttpServlet {
     }
 
     private static boolean isController(Class<?> clazz) {
-        return clazz.isAnnotationPresent(AnnotationControlleur.class);
+        return clazz.isAnnotationPresent(Annoter.class);
     }
 
     private String traitement(String description,HttpServletRequest req , HttpServletResponse res)throws Exception{
@@ -118,9 +118,9 @@ public class FrontController extends HttpServlet {
                 try {
                     Class<?> obj = Class.forName(value.getClassName());
                     Object objInstance = obj.getDeclaredConstructor().newInstance(); 
-                    String reponse = Reflection.execMethodeController(objInstance, value.getMethodName(), null);
+                    String reponse = Reflect.execMethodeController(objInstance, value.getMethodName(), null);
                     if (reponse.compareTo("prom16.fonction.ModelView")==0) {
-                        ModelView mv = (ModelView)Reflection.execMethode(objInstance, value.getMethodName(), null);
+                        ModelView mv = (ModelView)Reflect.execMethode(objInstance, value.getMethodName(), null);
                         String cleHash ="";
                         Object valueHash = new Object();
                         for (String cles : mv.getData().keySet()) {
