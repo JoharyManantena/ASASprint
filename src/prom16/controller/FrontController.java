@@ -1,22 +1,15 @@
 package prom16.controller;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.lang.reflect.Method;
-import java.net.URLDecoder;
-import java.util.HashMap;
-import java.util.Map;
+import java.io.*;
+import java.lang.reflect.*;
 
-import prom16.annotation.Annoter;
-import prom16.annotation.Get;
-import prom16.fonction.ModelView;
-import prom16.fonction.Reflect;
-import jakarta.servlet.ServletContext;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import java.net.URLDecoder;
+import java.util.*;
+
+import prom16.annotation.*;
+import prom16.fonction.*;
+import jakarta.servlet.*;
+import jakarta.servlet.http.*;
 
 public class FrontController extends HttpServlet {
     private String controllerPackage;
@@ -118,20 +111,108 @@ public class FrontController extends HttpServlet {
                 try {
                     Class<?> obj = Class.forName(value.getClassName());
                     Object objInstance = obj.getDeclaredConstructor().newInstance(); 
-                    String reponse = Reflect.execMethodeController(objInstance, value.getMethodName(), null);
-                    if (reponse.compareTo("prom16.fonction.ModelView")==0) {
-                        ModelView mv = (ModelView)Reflect.execMethode(objInstance, value.getMethodName(), null);
-                        String cleHash ="";
-                        Object valueHash = new Object();
-                        for (String cles : mv.getData().keySet()) {
-                            cleHash = cles;
-                            valueHash = mv.getData().get(cles);
-                            break;
+                    if (Reflect.findParam(objInstance, value.getMethodName())) {
+                        Parameter[] objParametre = Reflect.getParam(objInstance, value.getMethodName());
+                        // String[] objParametreName = Reflect.parameterNames(objInstance, value.getMethodName());
+                        Object[] objValeur = new Object[objParametre.length];
+                        Enumeration<String> reqParametre = req.getParameterNames();
+                        Enumeration<String> reqParametre2 = req.getParameterNames();
+                        for (int i = 0; i < objParametre.length; i++) {
+                            Class<?> objTemp = Reflect.getClassForName(objParametre[i].getParameterizedType().getTypeName());
+                            Object objTempInstance = null;
+                            if (!objTemp.isPrimitive()) {
+                                objTempInstance = objTemp.getDeclaredConstructor().newInstance();
+                            }
+
+                            if (!objTemp.isPrimitive() && objTempInstance.getClass().isAnnotationPresent(AnnoterObject.class)) {
+                                Field[] lesAttributs = objTempInstance.getClass().getDeclaredFields();
+                                Object[] attributsValeur = new Object[lesAttributs.length];
+                                for (int j = 0; j < lesAttributs.length; j++) {
+                                    int verif = 0;
+                                    while (reqParametre.hasMoreElements()) {
+                                        String paramName = reqParametre.nextElement();
+                                        if (paramName.startsWith(objParametre[i].getName() + ".")) {
+                                            // Obtenir la partie après le dernier "."
+                                            String lastPart = "";
+                                            int lastIndex = paramName.lastIndexOf(".");
+                                            if (lastIndex != -1 && lastIndex != paramName.length() - 1) {
+                                                lastPart = paramName.substring(lastIndex + 1);
+                                            }
+
+                                            if (lesAttributs[j].getName().compareTo(lastPart)==0) {
+                                                attributsValeur[j] = Reflect.castParameter(req.getParameter(paramName), lesAttributs[j].getType().getName());
+                                                verif++;
+                                                break;
+                                            }
+                                            if (lesAttributs[j].isAnnotationPresent(AnnoterAttribut.class)) {
+                                                if (lesAttributs[j].getAnnotation(AnnoterAttribut.class).value().compareTo(lastPart)==0) {
+                                                    attributsValeur[j] = Reflect.castParameter(req.getParameter(paramName), lesAttributs[j].getType().getName());
+                                                    verif++;
+                                                    break;
+                                                }
+                                            } 
+                                        }
+                                    }
+                                    if (verif == 0) {
+                                        attributsValeur[j] = Reflect.castParameter(null, lesAttributs[j].getType().getName());
+                                    }
+                                }
+                                objTempInstance = Reflect.process(objTempInstance, attributsValeur);
+                                objValeur[i] = objTempInstance;
+                            }else{
+                                int verif = 0;
+                                while (reqParametre2.hasMoreElements()) {
+                                    String paramName = reqParametre2.nextElement();
+                                    if (objParametre[i].getName().compareTo(paramName)==0) {
+                                        objValeur[i] = Reflect.castParameter(req.getParameter(paramName), objParametre[i].getParameterizedType().getTypeName());
+                                        verif++;
+                                        break;
+                                    }
+                                    if (objParametre[i].isAnnotationPresent(Param.class)) {
+                                        if (objParametre[i].getAnnotation(Param.class).value().compareTo(paramName)==0) {
+                                            objValeur[i] = Reflect.castParameter(req.getParameter(paramName), objParametre[i].getParameterizedType().getTypeName());
+                                            verif++;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (verif == 0) {
+                                    objValeur[i] = Reflect.castParameter(null, objParametre[i].getParameterizedType().getTypeName());
+                                }
+                            }
                         }
-                        req.setAttribute(cleHash, valueHash);
-                        req.getServletContext().getRequestDispatcher(mv.getUrl()).forward(req, res);
+
+                        String reponse = Reflect.execMethodeController(objInstance, value.getMethodName(), objValeur);
+                        if (reponse.compareTo("prom16.fonction.ModelView")==0) {
+                            ModelView mv = (ModelView)Reflect.execMethode(objInstance, value.getMethodName(), objValeur);
+                            String cleHash ="";
+                            Object valueHash = new Object();
+                            for (String cles : mv.getData().keySet()) {
+                                cleHash = cles;
+                                valueHash = mv.getData().get(cles);
+                                req.setAttribute(cleHash, valueHash);
+                            }
+                            req.setAttribute("baseUrl", nameProjet);
+                            req.getServletContext().getRequestDispatcher(mv.getUrl()).forward(req, res);
+                        }else{
+                            description += reponse;
+                        }
                     }else{
-                        description += reponse;
+                        String reponse = Reflect.execMethodeController(objInstance, value.getMethodName(), null);
+                        if (reponse.compareTo("prom16.fonction.ModelView")==0) {
+                            ModelView mv = (ModelView)Reflect.execMethode(objInstance, value.getMethodName(), null);
+                            String cleHash ="";
+                            Object valueHash = new Object();
+                            for (String cles : mv.getData().keySet()) {
+                                cleHash = cles;
+                                valueHash = mv.getData().get(cles);
+                                req.setAttribute(cleHash, valueHash);
+                            }
+                            req.setAttribute("baseUrl", nameProjet);
+                            req.getServletContext().getRequestDispatcher(mv.getUrl()).forward(req, res);
+                        }else{
+                            description += reponse;
+                        }
                     }
                 } catch (Exception e) {
                     throw new Exception(e.getMessage());
