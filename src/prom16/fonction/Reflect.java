@@ -251,14 +251,5 @@ public class Reflect {
         }
         return false;
     }
+
 }
-
-
-
-                        else if (Reflect.isRestAPI(objInstance, value.getMethodName())) {
-                        ModelView mv = (ModelView) Reflect.execMethode(objInstance, value.getMethodName(), null);
-                        String jsonResponse = gson.toJson(mv.getData());
-                        req.setAttribute("baseUrl", nameProjet);
-                        description = jsonResponse;
-                        res.setContentType("application/json");
-                    }
