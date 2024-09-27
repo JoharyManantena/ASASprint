@@ -4,15 +4,14 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 
-// import com.thoughtworks.paranamer.AdaptiveParanamer;
-// import com.thoughtworks.paranamer.Paranamer;
+import prom16.annotation.Rest;
 
 public class Reflect {
     public static String getClassName(Object obj) throws Exception {
         return obj.getClass().getName();
     }
 
-    public static String[] getAttributes(Object obj) throws Exception{
+    public static String[] getAttributes(Object obj) throws Exception {
         Field[] attributs = obj.getClass().getDeclaredFields();
         String[] valiny = new String[attributs.length];
         for (int i = 0; i < valiny.length; i++) {
@@ -52,10 +51,10 @@ public class Reflect {
         return valiny;
     }
 
-    public static boolean findParam(Object obj,String methodeName)throws Exception{
+    public static boolean findParam(Object obj, String methodeName) throws Exception {
         Boolean valiny = false;
         Method[] methods = obj.getClass().getDeclaredMethods();
-        
+
         for (Method method : methods) {
             if (method.getName().equals(methodeName)) {
                 return method.getParameterCount() > 0;
@@ -67,7 +66,7 @@ public class Reflect {
     public static Parameter[] getParam(Object obj, String methodName) throws Exception {
         Parameter[] valiny = new Parameter[0];
         Method[] methods = obj.getClass().getDeclaredMethods();
-        
+
         for (Method method : methods) {
             if (method.getName().equals(methodName)) {
                 valiny = method.getParameters();
@@ -77,26 +76,28 @@ public class Reflect {
         return valiny;
     }
 
-    // public static String[] parameterNames(Object obj, String methodName)throws Exception {
-    //     Method[] methods = obj.getClass().getDeclaredMethods();
-    //     String[] valiny = new String[0]; 
-    //     for (Method method : methods) {
-    //         if (method.getName().equals(methodName)) {
-    //             try {
-    //                 Paranamer paranamer = new AdaptiveParanamer();
-    //                 valiny = paranamer.lookupParameterNames(method);
-    //                 if (valiny.length == 0) {
-    //                     throw new Exception("No parameter names found for method: " + methodName);
-    //                 }
-    //             } catch (Exception e) {
-    //                 throw new Exception("Error fetching parameter names: " + e.getMessage()+" avec nom methode = "+methodName + " ou "+ method.getName());
-    //             }
-    //             break;
-    //         }
-    //     }
-    //     return valiny;
+    // public static String[] parameterNames(Object obj, String methodName)throws
+    // Exception {
+    // Method[] methods = obj.getClass().getDeclaredMethods();
+    // String[] valiny = new String[0];
+    // for (Method method : methods) {
+    // if (method.getName().equals(methodName)) {
+    // try {
+    // Paranamer paranamer = new AdaptiveParanamer();
+    // valiny = paranamer.lookupParameterNames(method);
+    // if (valiny.length == 0) {
+    // throw new Exception("No parameter names found for method: " + methodName);
     // }
-    
+    // } catch (Exception e) {
+    // throw new Exception("Error fetching parameter names: " + e.getMessage()+"
+    // avec nom methode = "+methodName + " ou "+ method.getName());
+    // }
+    // break;
+    // }
+    // }
+    // return valiny;
+    // }
+
     public static <T> T process(T object, Object[] lesValeurs) throws Exception {
         Class<?> clazz = object.getClass();
         Field[] fields = clazz.getDeclaredFields();
@@ -114,7 +115,7 @@ public class Reflect {
         return object;
     }
 
-    public static Object getDefaultValue(Class<?> type) throws Exception{
+    public static Object getDefaultValue(Class<?> type) throws Exception {
         if (type.isPrimitive()) {
             if (type == int.class) {
                 return 0;
@@ -174,7 +175,7 @@ public class Reflect {
             }
             return null;
         }
-                
+
         if (clazz == String.class) {
             return value;
         } else if (clazz == Integer.class || clazz == int.class) {
@@ -228,13 +229,36 @@ public class Reflect {
             return (String) result;
         } else {
             String valiny = "";
-            if (result.getClass().getTypeName().compareTo("controlleur.fonction.ModelView")==0) {
+            if (result.getClass().getTypeName().compareTo("controlleur.fonction.ModelView") == 0) {
                 valiny = result.getClass().getTypeName();
+            } else {
+                throw new Exception(
+                        "Erreur: Type de retour que l'on connait pas. La methode droit etre une String ou une ModelView ");
             }
-            else{
-                throw new Exception("Erreur: Type de retour que l'on connait pas. La methode droit etre une String ou une ModelView ");
-            } 
             return valiny;
         }
     }
+
+    public static boolean isRestAPI(Object obj, String methodName) {
+        Method[] methods = obj.getClass().getDeclaredMethods();
+        for (Method method : methods) {
+            if (method.getName().equals(methodName)) {
+                if (method.isAnnotationPresent(Rest.class)) {
+                    return true;
+                }
+                break;
+            }
+        }
+        return false;
+    }
 }
+
+
+
+                        else if (Reflect.isRestAPI(objInstance, value.getMethodName())) {
+                        ModelView mv = (ModelView) Reflect.execMethode(objInstance, value.getMethodName(), null);
+                        String jsonResponse = gson.toJson(mv.getData());
+                        req.setAttribute("baseUrl", nameProjet);
+                        description = jsonResponse;
+                        res.setContentType("application/json");
+                    }
