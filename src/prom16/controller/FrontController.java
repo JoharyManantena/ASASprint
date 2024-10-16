@@ -1,22 +1,39 @@
 package prom16.controller;
 
-import java.io.*;
-import java.lang.reflect.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.net.URLDecoder;
-import java.util.*;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
+
+import com.google.gson.Gson;
 
 import prom16.annotation.*;
-import prom16.fonction.*;
-import jakarta.servlet.*;
-import jakarta.servlet.http.*;
-import com.google.gson.Gson;
+import prom16.annotation.Annoter;
+import prom16.annotation.AnnoterObject;
+import prom16.annotation.Param;
+import prom16.annotation.Post;
+import prom16.annotation.Url;
+import prom16.fonction.ModelView;
+import prom16.fonction.Reflect;
+import prom16.fonction.CustomeSession;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 public class FrontController extends HttpServlet {
     private String controllerPackage;
-    private HashMap<String, Mapping> liste = new HashMap<>();
-    private Exception errorPackage = null;
-    private Exception errorLien = null;
-    private Gson gson = new Gson(); // Initialize Gson
+    private Gson gson = new Gson();
+    private HashMap<String, Mapping> liste = new HashMap<String, Mapping>();
+    private Exception errorPackage = new Exception("null");
+    private Exception errorLien = new Exception("null");
 
     public Exception getErrorLien() {
         return errorLien;
@@ -72,14 +89,21 @@ public class FrontController extends HttpServlet {
                         String className = packageName + "." + file.getName().substring(0, file.getName().length() - 6);
                         Class<?> clazz = Class.forName(className);
                         if (isController(clazz)) {
-                            Method[] methods = clazz.getDeclaredMethods();
-                            for (Method method : methods) {
-                                if (method.isAnnotationPresent(Get.class)) {
-                                    String key = method.getAnnotation(Get.class).value();
+                            Method[] listeMethod = clazz.getDeclaredMethods();
+                            for (Method method : listeMethod) {
+                                String verbe = "GET";
+                                if (method.isAnnotationPresent(Url.class)) {
+                                    String key = method.getAnnotation(Url.class).value();
                                     if (boite.containsKey(key)) {
-                                        throw new Exception("Erreur : Deux URL sont identiques pour le lien " + key);
+                                        throw new Exception("Erreur : Deux URL qui sont pareil sur cette lien " + key);
                                     }
-                                    Mapping map = new Mapping(className, method.getName());
+                                    Mapping map = new Mapping();
+                                    map.setClassName(className);
+                                    map.setMethodName( method.getName());
+                                    if (method.isAnnotationPresent(Post.class)) {
+                                        verbe = "POST";
+                                    }
+                                    map.setVerb(verbe);
                                     boite.put(key, map);
                                 }
                             }
@@ -87,7 +111,7 @@ public class FrontController extends HttpServlet {
                     }
                 }
             } else {
-                this.setErrorPackage(new Exception("Erreur : Package non existant " + packageName));
+                this.setErrorPackage(new Exception("Erreur Package non existant " + packageName));
             }
         } catch (Exception e) {
             this.setErrorLien(e);
@@ -103,92 +127,207 @@ public class FrontController extends HttpServlet {
         String url = req.getRequestURI();
         String nameProjet = req.getContextPath();
         int test = 0;
-
         for (Map.Entry<String, Mapping> entry : this.getListe().entrySet()) {
             String key = nameProjet + entry.getKey();
             Mapping value = entry.getValue();
+            String verbe = req.getMethod();
             if (key.equals(url)) {
                 test++;
                 try {
-                    Class<?> clazz = Class.forName(value.getClassName());
-                    Object objInstance = clazz.getDeclaredConstructor().newInstance();
+                    if (!verbe.equals(value.getVerb())) {
+                        throw new Exception("La methode "+value.getMethodName()+" est invoquee en "+value.getVerb()+" alors que ton formulaire opte pour du "+verbe+" . Un petit ajustement s'impose"); 
+                    }
+                    Class<?> obj = Class.forName(value.getClassName());
+                    Object objInstance = obj.getDeclaredConstructor().newInstance();
+                    Field[] fields = obj.getDeclaredFields();
+                    for (Field field : fields) {
+                        if (field.getType().equals(CustomeSession.class)) {
+                            CustomeSession customSession = new CustomeSession();
+                            customSession.setSession(req.getSession());
+                            field.setAccessible(true);
+                            field.set(objInstance, customSession);
+                        }
+                    }
 
                     if (Reflect.findParam(objInstance, value.getMethodName())) {
-                        // Retrieve method parameters and match with request parameters
-                        Parameter[] methodParams = Reflect.getParam(objInstance, value.getMethodName());
-                        Object[] methodValues = new Object[methodParams.length];
-                        Enumeration<String> reqParams = req.getParameterNames();
-                        List<String> paramNames = Collections.list(reqParams);
+                        Parameter[] objParametre = Reflect.getParam(objInstance, value.getMethodName());
+                        Object[] objValeur = new Object[objParametre.length];
+                        Enumeration<String> reqParametre = req.getParameterNames();
+                        Enumeration<String> reqParametre2 = req.getParameterNames();
+                        boolean isSession = false;
+                        int idParamSession = 0;
+                        for (int i = 0; i < objParametre.length; i++) {
+                            Class<?> objTemp = Reflect.getClassForName(objParametre[i].getParameterizedType().getTypeName());
+                            Object objTempInstance = null;
+                            if (!objTemp.isPrimitive()) {
+                                objTempInstance = objTemp.getDeclaredConstructor().newInstance();
+                            }
+                            if (!objTemp.isPrimitive() && objTempInstance.getClass().isAnnotationPresent(AnnoterObject.class)) {
+                                if (objParametre[i].isAnnotationPresent(Param.class)) {
+                                    Field[] lesAttributs = objTempInstance.getClass().getDeclaredFields();
+                                    Object[] attributsValeur = new Object[lesAttributs.length];
+                                    for (int j = 0; j < lesAttributs.length; j++) {
+                                        int verif = 0;
+                                        while (reqParametre.hasMoreElements()) {
+                                            String paramName = reqParametre.nextElement();
+                                            if (paramName.startsWith(objParametre[i].getAnnotation(Param.class).value() + ".")) {
+                                                String lastPart = "";
+                                                int lastIndex = paramName.lastIndexOf(".");
+                                                if (lastIndex != -1 && lastIndex != paramName.length() - 1) {
+                                                    lastPart = paramName.substring(lastIndex + 1);
+                                                }
 
-                        for (int i = 0; i < methodParams.length; i++) {
-                            String paramName = methodParams[i].getName();
-                            if (paramNames.contains(paramName)) {
-                                methodValues[i] = Reflect.castParameter(req.getParameter(paramName),
-                                        methodParams[i].getParameterizedType().getTypeName());
-                            } else {
-                                throw new Exception("Erreur : Paramètre requis non trouve : " + paramName);
+                                                if (lesAttributs[j].getName().compareTo(lastPart) == 0) {
+                                                    attributsValeur[j] = Reflect.castParameter(req.getParameter(paramName),lesAttributs[j].getType().getName());
+                                                    verif++;
+                                                    break;
+                                                }
+                                                if (lesAttributs[j].isAnnotationPresent(AnnoterAttribut.class)) {
+                                                    if (lesAttributs[j].getAnnotation(AnnoterAttribut.class).value().compareTo(lastPart) == 0) {
+                                                        attributsValeur[j] = Reflect.castParameter(req.getParameter(paramName),lesAttributs[j].getType().getName());
+                                                        verif++;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        if (verif == 0) {
+                                            attributsValeur[j] = Reflect.castParameter(null,lesAttributs[j].getType().getName());
+                                        }
+                                    }
+                                    objTempInstance = Reflect.process(objTempInstance, attributsValeur);
+                                    objValeur[i] = objTempInstance;
+                                } else {
+                                    throw new Exception("ETU002401 il n'y a pas de parametre sur cette methode");
+                                }
+                            } 
+                            else if (objTempInstance.getClass().getTypeName().compareTo("controlleur.source.CustomeSession") == 0) {
+                                isSession = true;
+                                idParamSession = i;
+                                objValeur[i] = Reflect.castParameter(null,objParametre[i].getParameterizedType().getTypeName());
+                            }
+                            else {
+                                int verif = 0;
+                                while (reqParametre2.hasMoreElements()) {
+                                    String paramName = reqParametre2.nextElement();
+                                    if (objParametre[i].isAnnotationPresent(Param.class)) {
+                                        if (objParametre[i].getAnnotation(Param.class).value().compareTo(paramName) == 0) {
+                                            objValeur[i] = Reflect.castParameter(req.getParameter(paramName),objParametre[i].getParameterizedType().getTypeName());
+                                            verif++;
+                                            break;
+                                        }
+                                    } else {
+                                        throw new Exception("ETU002401 il n'y a pas de parametre sur cette methode");
+                                    }
+                                }
+                                if (verif == 0) {
+                                    objValeur[i] = Reflect.castParameter(null,objParametre[i].getParameterizedType().getTypeName());
+                                }
                             }
                         }
 
-                        String response = Reflect.execMethodeController(objInstance, value.getMethodName(),
-                                methodValues);
-                        if (Reflect.isRestAPI(objInstance, value.getMethodName())){
-                            ModelView mv = (ModelView) Reflect.execMethode(objInstance, value.getMethodName(), null);
-                            String jsonResponse = gson.toJson(mv.getData());
-                            req.setAttribute("baseUrl", nameProjet);
-                            description = jsonResponse;
-                            res.setContentType("application/json");
+                        if (isSession) {
+                            Class<?> objTemp = Reflect.getClassForName(objParametre[idParamSession].getParameterizedType().getTypeName());
+                            Object objTempInstance = objTemp.getDeclaredConstructor().newInstance();
+                            CustomeSession session = (CustomeSession)objTempInstance ;
+                            session.setSession(req.getSession());
+                            objValeur[idParamSession] = session;
                         }
-                        else{
-                            if (response.equals("prom16.fonction.ModelView")) {
-                                ModelView mv = (ModelView) Reflect.execMethode(objInstance, value.getMethodName(),
-                                        methodValues);
-                                // Handle ModelView response ...
+
+                        String reponse = Reflect.execMethodeController(objInstance, value.getMethodName(),objValeur);
+                        if (Reflect.isRest(objInstance,  value.getMethodName())) {
+                            if (reponse.compareTo("controlleur.fonction.ModelView") == 0) {
+                                ModelView mv = (ModelView) Reflect.execMethode(objInstance, value.getMethodName(),objValeur);
+                                String jsonResponse = gson.toJson(mv.getData());
+                                req.setAttribute("baseUrl", nameProjet);
+                                description = jsonResponse;
                             } else {
-                                description += response;
+                                String jsonResponse = gson.toJson(reponse);
+                                description = jsonResponse;
+                            }
+                            res.setContentType("text/json");
+                        }else{
+                            if (reponse.compareTo("controlleur.fonction.ModelView") == 0) {
+                                ModelView mv = (ModelView) Reflect.execMethode(objInstance, value.getMethodName(),objValeur);
+                                String cleHash = "";
+                                Object valueHash = new Object();
+                                for (String cles : mv.getData().keySet()) {
+                                    cleHash = cles;
+                                    valueHash = mv.getData().get(cles);
+                                    req.setAttribute(cleHash, valueHash);
+                                }
+                                req.setAttribute("baseUrl", nameProjet);
+                                req.getServletContext().getRequestDispatcher(mv.getUrl()).forward(req, res);
+                            } else {
+                                description += reponse;
                             }
                         }
-                            
                     } else {
-                        String response = Reflect.execMethodeController(objInstance, value.getMethodName(), null);
-                        // Handle method without @Param ...
+                        String reponse = Reflect.execMethodeController(objInstance, value.getMethodName(), null);
+                        if (Reflect.isRest(objInstance,  value.getMethodName())) {
+                            if (reponse.compareTo("controlleur.fonction.ModelView") == 0) {
+                                ModelView mv = (ModelView) Reflect.execMethode(objInstance, value.getMethodName(), null);
+                                String jsonResponse = gson.toJson(mv.getData());
+                                req.setAttribute("baseUrl", nameProjet);
+                                description = jsonResponse;
+                            } else {
+                                String jsonResponse = gson.toJson(reponse);
+                                description = jsonResponse;
+                            }
+                            res.setContentType("text/json");
+                        }else{
+                            if (reponse.compareTo("controlleur.fonction.ModelView") == 0) {
+                                ModelView mv = (ModelView) Reflect.execMethode(objInstance, value.getMethodName(), null);
+                                String cleHash = "";
+                                Object valueHash = new Object();
+                                for (String cles : mv.getData().keySet()) {
+                                    cleHash = cles;
+                                    valueHash = mv.getData().get(cles);
+                                    req.setAttribute(cleHash, valueHash);
+                                }
+                                req.setAttribute("baseUrl", nameProjet);
+                                req.getServletContext().getRequestDispatcher(mv.getUrl()).forward(req, res);
+                            } else {
+                                description += reponse;
+                            }
+                        }
                     }
                 } catch (Exception e) {
                     throw new Exception(e.getMessage());
                 }
-            }
+            }               
         }
-
         if (test == 0) {
-            throw new Exception("Lien inexistant : Aucune methode associee à ce chemin " + req.getRequestURL());
+            throw new Exception("Lien inexistante : Il n'y a pas de methodes associer a cette chemin " + req.getRequestURL());
         }
         return description;
     }
 
-    protected void processRequest(HttpServletRequest req, HttpServletResponse res)
-            throws ServletException, IOException {
+    protected void processRequest(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
         PrintWriter out = res.getWriter();
-        String response = "";
-
-        try {
-            if (errorPackage == null && errorLien == null) {
-                response = traitement(response, req, res);
-            } else {
-                response = (errorPackage != null) ? errorPackage.getMessage() : errorLien.getMessage();
+        String valiny = "";
+        if (this.getErrorPackage().getMessage().compareTo("null") == 0 && this.getErrorLien().getMessage().compareTo("null") == 0) {
+            try {
+                valiny = traitement(valiny, req, res);
+            } catch (Exception e) {
+                valiny = e.getMessage();
             }
-        } catch (Exception e) {
-            response = e.getMessage();
+        } else {
+            if (this.getErrorPackage().getMessage().compareTo("null") == 0) {
+                valiny = this.getErrorLien().getMessage();
+            } else {
+                valiny = this.getErrorPackage().getMessage();
+            }
         }
-
-        out.println(response);
+        out.println(valiny);
     }
 
-    @Override
+    // @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         processRequest(req, resp);
     }
 
-    @Override
+    // @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         processRequest(req, resp);
     }
