@@ -154,7 +154,8 @@ public class FrontController extends HttpServlet {
                 req.getRequestDispatcher("/WEB-INF/errorPages/500.jsp").forward(req, res);
             }
         }
-    }
+    } 
+    // ajout et modification
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
