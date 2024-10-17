@@ -1,3 +1,4 @@
+//
 package prom16.fonction;
 
 public class VERBmethod {
