@@ -133,13 +133,26 @@ public class FrontController extends HttpServlet {
 
     protected void processRequest(HttpServletRequest req, HttpServletResponse res) throws IOException, ServletException {
         try (PrintWriter out = res.getWriter()) {
-            if (packageError.getMessage().equals("null") && urlError.getMessage().equals("null")) {
-                out.println(handleRequest(req, res));
-            } else {
-                out.println(packageError.getMessage().equals("null") ? urlError.getMessage() : packageError.getMessage());
+            if (!packageError.getMessage().equals("null")) {
+                throw new ServletException(packageError);
             }
+    
+            if (!urlError.getMessage().equals("null")) {
+                throw new ServletException(urlError);
+            }
+    
+            out.println(handleRequest(req, res));
+        } catch (ServletException e) {
+            res.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            req.getRequestDispatcher("/WEB-INF/errorPages/500.jsp").forward(req, res);
         } catch (Exception e) {
-            res.getWriter().println(e.getMessage());
+            if (e.getMessage().contains("No method mapped") || e.getMessage().contains("Method mismatch")) {
+                res.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                req.getRequestDispatcher("/WEB-INF/errorPages/400.jsp").forward(req, res);
+            } else {
+                res.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                req.getRequestDispatcher("/WEB-INF/errorPages/500.jsp").forward(req, res);
+            }
         }
     }
 
