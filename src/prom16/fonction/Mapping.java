@@ -1,4 +1,4 @@
-package prom16.controller;
+package prom16.fonction;
 
 public class Mapping {
     String className;
