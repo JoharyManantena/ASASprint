@@ -2,7 +2,7 @@ package prom16.fonction;
 
 import jakarta.servlet.http.HttpSession;
 
-public class CustomeSession {
+public class CustomSession {
     private HttpSession session;
     
     public HttpSession getSession() {
