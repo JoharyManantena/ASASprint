@@ -131,21 +131,45 @@ public class FrontController extends HttpServlet {
         }
     }
 
+    private void handleFileUpload(HttpServletRequest request, HttpServletResponse response) throws Exception {
+            Part filePart = request.getPart("file");
+            String fileName = Reflect.extractFileName(filePart);
+
+            // Appel de la méthode annotée avec `@FileValidator`
+            FileHandler.validateFile(filePart);
+
+            // Si tout est valide, enregistrer le fichier
+            String uploadPath = getServletContext().getRealPath("") + File.separator + "uploads";
+            File uploadDir = new File(uploadPath);
+            if (!uploadDir.exists()) uploadDir.mkdir();
+            filePart.write(uploadPath + File.separator + fileName);
+
+            request.setAttribute("message", "File uploaded successfully: " + fileName);
+            request.getRequestDispatcher("/uploadResult.jsp").forward(request, response);
+        }
+
     protected void processRequest(HttpServletRequest req, HttpServletResponse res) throws IOException, ServletException {
         try (PrintWriter out = res.getWriter()) {
+            if ("uploadFile".equals(req.getParameter("action"))) {
+                handleFileUpload(req, res);
+                return;
+            }
+
             if (!packageError.getMessage().equals("null")) {
                 throw new ServletException(packageError);
             }
-    
+
             if (!urlError.getMessage().equals("null")) {
                 throw new ServletException(urlError);
             }
-    
+
             out.println(handleRequest(req, res));
-        } catch (ServletException e) {
+        }
+         catch (ServletException e) {
             res.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             req.getRequestDispatcher("/WEB-INF/errorPages/500.jsp").forward(req, res);
-        } catch (Exception e) {
+        }
+         catch (Exception e) {
             if (e.getMessage().contains("No method mapped") || e.getMessage().contains("Method mismatch")) {
                 res.setStatus(HttpServletResponse.SC_BAD_REQUEST);
                 req.getRequestDispatcher("/WEB-INF/errorPages/400.jsp").forward(req, res);
@@ -154,7 +178,8 @@ public class FrontController extends HttpServlet {
                 req.getRequestDispatcher("/WEB-INF/errorPages/500.jsp").forward(req, res);
             }
         }
-    } 
+    }
+ 
     // ajout et modification
 
     @Override

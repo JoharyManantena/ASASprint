@@ -5,6 +5,9 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 
 import prom16.annotation.Rest;
+import prom16.annotation.FileValidator; // Ensure this matches your package structure
+import jakarta.servlet.http.Part; // For the Part class
+
 
 public class Reflect {
     
@@ -137,4 +140,49 @@ public class Reflect {
         }
         return false;
     }
+
+
+    public static String extractFileName(Part part) {
+        String contentDisposition = part.getHeader("content-disposition");
+        for (String token : contentDisposition.split(";")) {
+            if (token.trim().startsWith("filename")) {
+                return token.substring(token.indexOf('=') + 2, token.length() - 1);
+            }
+        }
+        return null;
+    }
+
+    public static void validateFileWithAnnotation(Part part, String fileName, Method method) throws FileValidationException {
+        if (method.isAnnotationPresent(FileValidator.class)) {
+            FileValidator fileValidator = method.getAnnotation(FileValidator.class);
+            long maxSize = fileValidator.maxSize();
+            String[] allowedTypes = fileValidator.allowedTypes();
+
+            // Validate file size
+            if (part.getSize() > maxSize) {
+                throw new FileValidationException("File " + fileName + " is too large. Max allowed size is " + (maxSize / 1024 / 1024) + " MB.");
+            }
+
+            // Validate MIME type
+            String fileType = part.getContentType();
+            boolean isValidType = false;
+            for (String type : allowedTypes) {
+                if (fileType.equals(type)) {
+                    isValidType = true;
+                    break;
+                }
+            }
+            if (!isValidType) {
+                throw new FileValidationException("Invalid file type: " + fileName + ". Allowed types: " + String.join(", ", allowedTypes));
+            }
+        }
+    }
+
+    // Define custom exceptions for better error handling
+    public static class FileValidationException extends Exception {
+        public FileValidationException(String message) {
+            super(message);
+        }
+    }
+
 }
