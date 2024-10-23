@@ -1,32 +1,31 @@
-//
 package prom16.fonction;
 
 public class VERBmethod {
-    private String url;
-    private String method;
+    String methodName;
+    String verb;//Soit 'GET' ou 'POST' en majuscule
 
-    public VERBmethod(String url, String method) {
-        this.url = url;
-        this.method = method;
+    public VERBmethod() {
     }
 
-    public String getUrl() {
-        return url;
+    public String getMethodName() {
+        return methodName;
     }
 
-    public void setUrl(String url) {
-        this.url = url;
+    public void setMethodName(String methodName) {
+        this.methodName = methodName;
     }
 
-    public String getMethod() {
-        return method;
+    public String getVerb() {
+        return verb;
+    }
+    
+    public void setVerb(String verb) {
+        this.verb = verb;
     }
 
-    public void setMethod(String method) {
-        this.method = method;
+    public VERBmethod(String methodName, String verb) {
+        this.setMethodName(methodName);
+        this.setVerb(verb);
     }
 
-    public boolean matches(String requestUrl, String requestMethod) {
-        return this.url.equals(requestUrl) && this.method.equals(requestMethod);
-    }
 }
