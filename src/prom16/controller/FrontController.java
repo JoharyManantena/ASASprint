@@ -121,6 +121,7 @@ public class FrontController extends HttpServlet {
             String packagePath = decodedPath + "/" + packageName.replace('.', '/');
             File packageDirectory = new File(packagePath);
             if (packageDirectory.exists() && packageDirectory.isDirectory()) {
+                @SuppressWarnings("unused")
                 File[] classFiles = packageDirectory.listFiles((dir, name) -> name.endsWith(".class"));
                 if (classFiles != null) {
                     for (File file : classFiles) {
