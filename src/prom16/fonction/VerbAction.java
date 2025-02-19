@@ -2,7 +2,7 @@ package prom16.fonction;
 
 public class VerbAction {
     String methodName;
-    String verb; 
+    String verb;//Soit 'GET' ou 'POST' en majuscule
 
     public VerbAction() {
     }

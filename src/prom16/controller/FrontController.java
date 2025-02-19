@@ -1,7 +1,5 @@
 package prom16.controller;
 
-package prom16.source;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -17,16 +15,19 @@ import java.util.Map;
 
 import com.google.gson.Gson;
 
-import prom16.annotation.AnnotationAttribut;
-import prom16.annotation.Annotationprom16;
-import prom16.annotation.AnnotationObject;
+import prom16.annotation.AnnoterAttribut;
+import prom16.annotation.Annoter;
+import prom16.annotation.AnnoterObject;
 import prom16.annotation.Auth;
 import prom16.annotation.Param;
 import prom16.annotation.Post;
 import prom16.annotation.Roles;
 import prom16.annotation.Url;
+import prom16.fonction.CustomSession;
+import prom16.fonction.Mapping;
 import prom16.fonction.ModelView;
-import prom16.fonction.Reflection;
+import prom16.fonction.Reflect;
+import prom16.fonction.VerbAction;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.MultipartConfig;
@@ -164,11 +165,11 @@ public class FrontController extends HttpServlet {
     }
 
     private static boolean isController(Class<?> clazz) {
-        return clazz.isAnnotationPresent(Annotationprom16.class);
+        return clazz.isAnnotationPresent(Annoter.class);
     }
 
     private void traitementAuth(Method meth , Class<?> clazz,HttpServletRequest req) throws Exception{
-        CustomeSession session = new CustomeSession();
+        CustomSession session = new CustomSession();
         session.setSession(req.getSession());
         if (meth != null && clazz == null) {
             if (meth.isAnnotationPresent(Auth.class)) {
@@ -251,19 +252,19 @@ public class FrontController extends HttpServlet {
                     Object objInstance = obj.getDeclaredConstructor().newInstance();
                     Field[] fields = obj.getDeclaredFields();
                     for (Field field : fields) {
-                        if (field.getType().equals(CustomeSession.class)) {
-                            CustomeSession customSession = new CustomeSession();
+                        if (field.getType().equals(CustomSession.class)) {
+                            CustomSession customSession = new CustomSession();
                             customSession.setSession(req.getSession());
                             field.setAccessible(true);
                             field.set(objInstance, customSession);
                         }
                     }
 
-                    Method meth = Reflection.getMethode(objInstance, value.getVerbeAction().get(idVerbeMethode).getMethodName());
+                    Method meth = Reflect.getMethode(objInstance, value.getVerbeAction().get(idVerbeMethode).getMethodName());
                     traitementAuth(meth,null,req);
 
-                    if (Reflection.findParam(objInstance, value.getVerbeAction().get(idVerbeMethode).getMethodName())) {
-                        Parameter[] objParametre = Reflection.getParam(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName());
+                    if (Reflect.findParam(objInstance, value.getVerbeAction().get(idVerbeMethode).getMethodName())) {
+                        Parameter[] objParametre = Reflect.getParam(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName());
                         Object[] objValeur = new Object[objParametre.length];
                         Enumeration<String> reqParametre = req.getParameterNames();
                         Enumeration<String> reqParametre2 = req.getParameterNames();
@@ -276,7 +277,7 @@ public class FrontController extends HttpServlet {
                         boolean isSession = false;
                         int idParamSession = 0;
                         for (int i = 0; i < objParametre.length; i++) {
-                            Class<?> objTemp = Reflection.getClassForName(objParametre[i].getParameterizedType().getTypeName());
+                            Class<?> objTemp = Reflect.getClassForName(objParametre[i].getParameterizedType().getTypeName());
                             Object objTempInstance = null;
                             
                             if (objParametre[i].getType() == Part.class) {
@@ -292,7 +293,7 @@ public class FrontController extends HttpServlet {
                                 if (!objTemp.isPrimitive()) {
                                     objTempInstance = objTemp.getDeclaredConstructor().newInstance();
                                 }
-                                if (!objTemp.isPrimitive() && objTempInstance.getClass().isAnnotationPresent(AnnotationObject.class)) {
+                                if (!objTemp.isPrimitive() && objTempInstance.getClass().isAnnotationPresent(AnnoterObject.class)) {
                                     if (objParametre[i].isAnnotationPresent(Param.class)) {
                                         Field[] lesAttributs = objTempInstance.getClass().getDeclaredFields();
                                         Object[] attributsValeur = new Object[lesAttributs.length];
@@ -302,8 +303,8 @@ public class FrontController extends HttpServlet {
 
                                             List<String> valeurErreur = new ArrayList<>();
                                             String clesErreur = "error_"+objParametre[i].getAnnotation(Param.class).value() + ".";
-                                            if (lesAttributs[j].isAnnotationPresent(AnnotationAttribut.class)) {
-                                                clesErreur += lesAttributs[j].getAnnotation(AnnotationAttribut.class).value();
+                                            if (lesAttributs[j].isAnnotationPresent(AnnoterAttribut.class)) {
+                                                clesErreur += lesAttributs[j].getAnnotation(AnnoterAttribut.class).value();
                                             }else {
                                                 clesErreur += lesAttributs[j].getName();
                                             }
@@ -318,22 +319,22 @@ public class FrontController extends HttpServlet {
                                                     }
 
                                                     if (lesAttributs[j].getName().compareTo(lastPart) == 0) {
-                                                        if (!Reflection.validation(lesAttributs[j], req.getParameter(paramName))) {
-                                                            valeurErreur = Reflection.erreurValidation(lesAttributs[j], req.getParameter(paramName));
+                                                        if (!Reflect.validation(lesAttributs[j], req.getParameter(paramName))) {
+                                                            valeurErreur = Reflect.erreurValidation(lesAttributs[j], req.getParameter(paramName));
                                                             verifErreur ++;
                                                         }else{
-                                                            attributsValeur[j] = Reflection.castParameter(req.getParameter(paramName),lesAttributs[j].getType().getName());
+                                                            attributsValeur[j] = Reflect.castParameter(req.getParameter(paramName),lesAttributs[j].getType().getName());
                                                             verif++;
                                                             break;
                                                         }
                                                     }
-                                                    if (lesAttributs[j].isAnnotationPresent(AnnotationAttribut.class)) {
-                                                        if (lesAttributs[j].getAnnotation(AnnotationAttribut.class).value().compareTo(lastPart) == 0) {
-                                                            if (!Reflection.validation(lesAttributs[j], req.getParameter(paramName))) {
-                                                                valeurErreur = Reflection.erreurValidation(lesAttributs[j], req.getParameter(paramName));
+                                                    if (lesAttributs[j].isAnnotationPresent(AnnoterAttribut.class)) {
+                                                        if (lesAttributs[j].getAnnotation(AnnoterAttribut.class).value().compareTo(lastPart) == 0) {
+                                                            if (!Reflect.validation(lesAttributs[j], req.getParameter(paramName))) {
+                                                                valeurErreur = Reflect.erreurValidation(lesAttributs[j], req.getParameter(paramName));
                                                                 verifErreur ++;
                                                             }else{
-                                                                attributsValeur[j] = Reflection.castParameter(req.getParameter(paramName),lesAttributs[j].getType().getName());
+                                                                attributsValeur[j] = Reflect.castParameter(req.getParameter(paramName),lesAttributs[j].getType().getName());
                                                                 verif++;
                                                                 break;
                                                             }
@@ -344,22 +345,22 @@ public class FrontController extends HttpServlet {
                                             }
                                             
                                             if (verif == 0) {
-                                                attributsValeur[j] = Reflection.castParameter(null,lesAttributs[j].getType().getName());
+                                                attributsValeur[j] = Reflect.castParameter(null,lesAttributs[j].getType().getName());
                                             }
 
                                             mapErreur.put(clesErreur, valeurErreur);
                                         }
 
-                                        objTempInstance = Reflection.process(objTempInstance, attributsValeur);
+                                        objTempInstance = Reflect.process(objTempInstance, attributsValeur);
                                         objValeur[i] = objTempInstance;
                                     } else {
                                         this.setStatusCode("400");
                                         throw new Exception("ETU002401 il n'y a pas de parametre sur cette methode");
                                     }
-                                } else if (objTempInstance.getClass().getTypeName().compareTo("prom16.source.CustomeSession") == 0) {
+                                } else if (objTempInstance.getClass().getTypeName().compareTo("prom16.source.CustomSession") == 0) {
                                     isSession = true;
                                     idParamSession = i;
-                                    objValeur[i] = Reflection.castParameter(null,
+                                    objValeur[i] = Reflect.castParameter(null,
                                             objParametre[i].getParameterizedType().getTypeName());
                                 } else {
                                     int verif = 0;
@@ -367,7 +368,7 @@ public class FrontController extends HttpServlet {
                                         String paramName = reqParametre2.nextElement();
                                         if (objParametre[i].isAnnotationPresent(Param.class)) {
                                             if (objParametre[i].getAnnotation(Param.class).value().compareTo(paramName) == 0) {
-                                                objValeur[i] = Reflection.castParameter(req.getParameter(paramName),objParametre[i].getParameterizedType().getTypeName());
+                                                objValeur[i] = Reflect.castParameter(req.getParameter(paramName),objParametre[i].getParameterizedType().getTypeName());
                                                 verif++;
                                                 break;
                                             }
@@ -377,25 +378,25 @@ public class FrontController extends HttpServlet {
                                         }
                                     }
                                     if (verif == 0) {
-                                        objValeur[i] = Reflection.castParameter(null,objParametre[i].getParameterizedType().getTypeName());
+                                        objValeur[i] = Reflect.castParameter(null,objParametre[i].getParameterizedType().getTypeName());
                                     }
                                 }
                             }
                         }
 
                         if (isSession) {
-                            Class<?> objTemp = Reflection.getClassForName(objParametre[idParamSession].getParameterizedType().getTypeName());
+                            Class<?> objTemp = Reflect.getClassForName(objParametre[idParamSession].getParameterizedType().getTypeName());
                             Object objTempInstance = objTemp.getDeclaredConstructor().newInstance();
-                            CustomeSession session = (CustomeSession) objTempInstance;
+                            CustomSession session = (CustomSession) objTempInstance;
                             session.setSession(req.getSession());
                             objValeur[idParamSession] = session;
                         }
                         
-                        String reponse = Reflection.execMethodeController(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), objValeur); 
+                        String reponse = Reflect.execMethodeController(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), objValeur); 
                         
-                        if (Reflection.isRestAPI(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName())) {
+                        if (Reflect.isRest(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName())) {
                             if (reponse.compareTo("prom16.fonction.ModelView") == 0) {
-                                ModelView mv = (ModelView) Reflection.execMethode(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), objValeur);
+                                ModelView mv = (ModelView) Reflect.execMethode(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), objValeur);
                                 String jsonResponse = gson.toJson(mv.getData());
                                 req.setAttribute("baseUrl", nameProjet);
                                 description = jsonResponse;
@@ -406,7 +407,7 @@ public class FrontController extends HttpServlet {
                             res.setContentType("text/json");
                         } else {
                             if (reponse.compareTo("prom16.fonction.ModelView") == 0) {
-                                ModelView mv = (ModelView) Reflection.execMethode(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), objValeur);
+                                ModelView mv = (ModelView) Reflect.execMethode(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), objValeur);
                                 String cleHash = "";
                                 String referer = "";
                                 Object valueHash = new Object();
@@ -448,10 +449,10 @@ public class FrontController extends HttpServlet {
                             }
                         }
                     } else {
-                        String reponse = Reflection.execMethodeController(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), null);
-                        if (Reflection.isRestAPI(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName())) {
+                        String reponse = Reflect.execMethodeController(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), null);
+                        if (Reflect.isRest(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName())) {
                             if (reponse.compareTo("prom16.fonction.ModelView") == 0) {
-                                ModelView mv = (ModelView) Reflection.execMethode(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), null);
+                                ModelView mv = (ModelView) Reflect.execMethode(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), null);
                                 String jsonResponse = gson.toJson(mv.getData());
                                 req.setAttribute("baseUrl", nameProjet);
                                 description = jsonResponse;
@@ -462,7 +463,7 @@ public class FrontController extends HttpServlet {
                             res.setContentType("text/json");
                         } else {
                             if (reponse.compareTo("prom16.fonction.ModelView") == 0) {
-                                ModelView mv = (ModelView) Reflection.execMethode(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), null);
+                                ModelView mv = (ModelView) Reflect.execMethode(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), null);
                                 String cleHash = "";
                                 Object valueHash = new Object();
                                 for (String cles : mv.getData().keySet()) {
