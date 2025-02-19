@@ -1,32 +1,30 @@
 package prom16.controller;
 
-package prom16.source;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.net.URLDecoder;
-import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import com.google.gson.Gson;
 
-import prom16.annotation.AnnotationAttribut;
-import prom16.annotation.Annotationprom16;
-import prom16.annotation.AnnotationObject;
-import prom16.annotation.Auth;
+import prom16.annotation.AnnoterAttribut;
+import prom16.annotation.Annoter;
+import prom16.annotation.AnnoterObject;
 import prom16.annotation.Param;
 import prom16.annotation.Post;
-import prom16.annotation.Roles;
 import prom16.annotation.Url;
+import prom16.fonction.CustomSession;
+import prom16.fonction.Mapping;
 import prom16.fonction.ModelView;
-import prom16.fonction.Reflection;
+import prom16.fonction.Reflect;
+import prom16.fonction.VERBmethod;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.MultipartConfig;
@@ -43,24 +41,6 @@ public class FrontController extends HttpServlet {
     private Exception errorPackage = new Exception("null");
     private Exception errorLien = new Exception("null");
     private String statusCode = "200";
-    private String authUser;
-    private String userRoles;
-
-    public String getAuthUser() {
-        return authUser;
-    }
-
-    public void setAuthUser(String authUser) {
-        this.authUser = authUser;
-    }
-
-    public String getUserRoles() {
-        return userRoles;
-    }
-
-    public void setUserRoles(String userRoles) {
-        this.userRoles = userRoles;
-    }
 
     public void setStatusCode(String statusCode) {
         this.statusCode = statusCode;
@@ -97,8 +77,6 @@ public class FrontController extends HttpServlet {
     @Override
     public void init() throws ServletException {
         this.setControllerPackage(getServletConfig().getInitParameter("namePath"));
-        this.setAuthUser(getServletContext().getInitParameter("authentification"));
-        this.setUserRoles(getServletContext().getInitParameter("roles"));
         this.scan(getServletContext());
         super.init();
     }
@@ -136,16 +114,17 @@ public class FrontController extends HttpServlet {
                                     if (method.isAnnotationPresent(Post.class)) {
                                         verbe = "POST";
                                     }
-                                    VerbAction verbeAction = new VerbAction(method.getName(), verbe);
+                                    VERBmethod verbeAction = new VERBmethod(method.getName(), verbe);
                                     if (boite.containsKey(key)) {
                                         Mapping keyExist = boite.get(key);
                                         if (keyExist.contains(verbeAction)) {
                                             this.setStatusCode("409");
-                                            throw new Exception("Erreur : Deux URL qui sont pareil sur cette lien "+ key + " avec le meme verbe " + verbe);
+                                            throw new Exception("Erreur : Deux URL qui sont pareil sur cette lien "
+                                                    + key + " avec le meme verbe " + verbe);
                                         }
-                                        keyExist.addVerbAction(verbeAction);
+                                        keyExist.addVERBmethod(verbeAction);
                                     } else {
-                                        map.addVerbAction(verbeAction);
+                                        map.addVERBmethod(verbeAction);
                                         boite.put(key, map);
                                     }
                                 }
@@ -164,57 +143,7 @@ public class FrontController extends HttpServlet {
     }
 
     private static boolean isController(Class<?> clazz) {
-        return clazz.isAnnotationPresent(Annotationprom16.class);
-    }
-
-    private void traitementAuth(Method meth , Class<?> clazz,HttpServletRequest req) throws Exception{
-        CustomeSession session = new CustomeSession();
-        session.setSession(req.getSession());
-        if (meth != null && clazz == null) {
-            if (meth.isAnnotationPresent(Auth.class)) {
-                if ((Boolean)session.getSession().getAttribute(getAuthUser()) != true) {
-                    this.setStatusCode("400");
-                    throw new Exception("Vous ne pouvez pas accéder à cette méthode car vous devez être authentifié"); 
-                }
-            }else if (meth.isAnnotationPresent(Roles.class)) {
-                String[] lesRoles =  meth.getAnnotation(Roles.class).value();
-                boolean exists = true;
-                String mess = String.join(" ou ", lesRoles);
-                for (String ext : lesRoles) {
-                    if (ext.equals((String)session.getSession().getAttribute(getUserRoles()))) {
-                        exists = false;                
-                    }
-                }
-                if (exists) {
-                    this.setStatusCode("400");
-                    throw new Exception("Vous ne pouvez pas accéder à cette méthode car vous devez être une "+mess);                    
-                }
-            }else{
-                //Pour les methodes publics et qui n'ont pas d'annotations
-            }
-        }else if(meth == null && clazz != null){
-            if (clazz.isAnnotationPresent(Auth.class)) {
-                if ((Boolean)session.getSession().getAttribute(authUser) != true) {
-                    this.setStatusCode("400");
-                    throw new Exception("Vous ne pouvez pas accéder à cette prom16 car vous devez être authentifié"); 
-                }
-            }else if (clazz.isAnnotationPresent(Roles.class)) {
-                String[] lesRoles =  clazz.getAnnotation(Roles.class).value();
-                boolean exists = true;
-                String mess = String.join(" ou ", lesRoles);
-                for (String ext : lesRoles) {
-                    if (ext.equals((String)session.getSession().getAttribute(getUserRoles()))) {
-                        exists = false;                
-                    }
-                }
-                if (exists) {
-                    this.setStatusCode("400");
-                    throw new Exception("Vous ne pouvez pas accéder à cette prom16 car vous devez être une "+mess);
-                }
-            }else{
-                //Pour les prom16 publics et qui n'ont pas d'annotations
-            }
-        }
+        return clazz.isAnnotationPresent(Annoter.class);
     }
 
     private String traitement(String description, HttpServletRequest req, HttpServletResponse res) throws Exception {
@@ -225,8 +154,6 @@ public class FrontController extends HttpServlet {
             String key = nameProjet + entry.getKey();
             Mapping value = entry.getValue();
             String verbe = req.getMethod();
-            int verifErreur = 0;
-            HashMap<String, List<String>> mapErreur = new HashMap<String, List<String>>();
             if (key.equals(url)) {
                 int idVerbeMethode = 0;
                 for (int i = 0; i < value.getVerbeAction().size(); i++) {
@@ -234,9 +161,7 @@ public class FrontController extends HttpServlet {
                         idVerbeMethode = i;
                     }
                 }
-                
                 test++;
-
                 try {
                     if (!verbe.equals(value.getVerbeAction().get(idVerbeMethode).getVerb())) {
                         this.setStatusCode("405");
@@ -245,38 +170,27 @@ public class FrontController extends HttpServlet {
                                 + " alors que ton formulaire opte pour du " + verbe
                                 + " . Un petit ajustement s'impose");
                     }
-
                     Class<?> obj = Class.forName(value.getClassName());
-                    traitementAuth(null,obj,req);
                     Object objInstance = obj.getDeclaredConstructor().newInstance();
                     Field[] fields = obj.getDeclaredFields();
                     for (Field field : fields) {
-                        if (field.getType().equals(CustomeSession.class)) {
-                            CustomeSession customSession = new CustomeSession();
+                        if (field.getType().equals(CustomSession.class)) {
+                            CustomSession customSession = new CustomSession();
                             customSession.setSession(req.getSession());
                             field.setAccessible(true);
                             field.set(objInstance, customSession);
                         }
                     }
 
-                    Method meth = Reflection.getMethode(objInstance, value.getVerbeAction().get(idVerbeMethode).getMethodName());
-                    traitementAuth(meth,null,req);
-
-                    if (Reflection.findParam(objInstance, value.getVerbeAction().get(idVerbeMethode).getMethodName())) {
-                        Parameter[] objParametre = Reflection.getParam(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName());
+                    if (Reflect.findParam(objInstance, value.getVerbeAction().get(idVerbeMethode).getMethodName())) {
+                        Parameter[] objParametre = Reflect.getParam(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName());
                         Object[] objValeur = new Object[objParametre.length];
                         Enumeration<String> reqParametre = req.getParameterNames();
                         Enumeration<String> reqParametre2 = req.getParameterNames();
-                        List<String> reqParametreString = new ArrayList<String>();
-                        while (reqParametre.hasMoreElements()) {
-                            String paramName = reqParametre.nextElement();
-                            reqParametreString.add(paramName);
-                        }
-
                         boolean isSession = false;
                         int idParamSession = 0;
                         for (int i = 0; i < objParametre.length; i++) {
-                            Class<?> objTemp = Reflection.getClassForName(objParametre[i].getParameterizedType().getTypeName());
+                            Class<?> objTemp = Reflect.getClassForName(objParametre[i].getParameterizedType().getTypeName());
                             Object objTempInstance = null;
                             
                             if (objParametre[i].getType() == Part.class) {
@@ -286,30 +200,21 @@ public class FrontController extends HttpServlet {
                                     objValeur[i] = (Part) file;                              
                                 } else {
                                     this.setStatusCode("400");
-                                    throw new Exception("ETU002401 il n'y a pas de parametre sur cette methode");
+                                    throw new Exception("ETU002404 , il n'y a pas de parametre sur cette methode");
                                 }
                             } else {
                                 if (!objTemp.isPrimitive()) {
                                     objTempInstance = objTemp.getDeclaredConstructor().newInstance();
                                 }
-                                if (!objTemp.isPrimitive() && objTempInstance.getClass().isAnnotationPresent(AnnotationObject.class)) {
+                                if (!objTemp.isPrimitive()
+                                        && objTempInstance.getClass().isAnnotationPresent((Class<? extends Annotation>) AnnoterObject.class)) {
                                     if (objParametre[i].isAnnotationPresent(Param.class)) {
                                         Field[] lesAttributs = objTempInstance.getClass().getDeclaredFields();
                                         Object[] attributsValeur = new Object[lesAttributs.length];
-
                                         for (int j = 0; j < lesAttributs.length; j++) {
                                             int verif = 0;
-
-                                            List<String> valeurErreur = new ArrayList<>();
-                                            String clesErreur = "error_"+objParametre[i].getAnnotation(Param.class).value() + ".";
-                                            if (lesAttributs[j].isAnnotationPresent(AnnotationAttribut.class)) {
-                                                clesErreur += lesAttributs[j].getAnnotation(AnnotationAttribut.class).value();
-                                            }else {
-                                                clesErreur += lesAttributs[j].getName();
-                                            }
-
-                                            for (int k = 0; k < reqParametreString.size(); k++) {
-                                                String paramName = reqParametreString.get(k);
+                                            while (reqParametre.hasMoreElements()) {
+                                                String paramName = reqParametre.nextElement();
                                                 if (paramName.startsWith(objParametre[i].getAnnotation(Param.class).value() + ".")) {
                                                     String lastPart = "";
                                                     int lastIndex = paramName.lastIndexOf(".");
@@ -318,48 +223,34 @@ public class FrontController extends HttpServlet {
                                                     }
 
                                                     if (lesAttributs[j].getName().compareTo(lastPart) == 0) {
-                                                        if (!Reflection.validation(lesAttributs[j], req.getParameter(paramName))) {
-                                                            valeurErreur = Reflection.erreurValidation(lesAttributs[j], req.getParameter(paramName));
-                                                            verifErreur ++;
-                                                        }else{
-                                                            attributsValeur[j] = Reflection.castParameter(req.getParameter(paramName),lesAttributs[j].getType().getName());
+                                                        attributsValeur[j] = Reflect.castParameter(req.getParameter(paramName),lesAttributs[j].getType().getName());
+                                                        verif++;
+                                                        break;
+                                                    }
+                                                    if (lesAttributs[j].isAnnotationPresent(AnnoterAttribut.class)) {
+                                                        if (lesAttributs[j].getAnnotation(AnnoterAttribut.class).value().compareTo(lastPart) == 0) {
+                                                            attributsValeur[j] = Reflect.castParameter(req.getParameter(paramName),lesAttributs[j].getType().getName());
                                                             verif++;
                                                             break;
                                                         }
                                                     }
-                                                    if (lesAttributs[j].isAnnotationPresent(AnnotationAttribut.class)) {
-                                                        if (lesAttributs[j].getAnnotation(AnnotationAttribut.class).value().compareTo(lastPart) == 0) {
-                                                            if (!Reflection.validation(lesAttributs[j], req.getParameter(paramName))) {
-                                                                valeurErreur = Reflection.erreurValidation(lesAttributs[j], req.getParameter(paramName));
-                                                                verifErreur ++;
-                                                            }else{
-                                                                attributsValeur[j] = Reflection.castParameter(req.getParameter(paramName),lesAttributs[j].getType().getName());
-                                                                verif++;
-                                                                break;
-                                                            }
-                                                        }
-                                                    }
                                                 }
-                                                
                                             }
-                                            
                                             if (verif == 0) {
-                                                attributsValeur[j] = Reflection.castParameter(null,lesAttributs[j].getType().getName());
+                                                attributsValeur[j] = Reflect.castParameter(null,
+                                                        lesAttributs[j].getType().getName());
                                             }
-
-                                            mapErreur.put(clesErreur, valeurErreur);
                                         }
-
-                                        objTempInstance = Reflection.process(objTempInstance, attributsValeur);
+                                        objTempInstance = Reflect.process(objTempInstance, attributsValeur);
                                         objValeur[i] = objTempInstance;
                                     } else {
                                         this.setStatusCode("400");
-                                        throw new Exception("ETU002401 il n'y a pas de parametre sur cette methode");
+                                        throw new Exception("ETU002404 , il n'y a pas de parametre sur cette methode");
                                     }
-                                } else if (objTempInstance.getClass().getTypeName().compareTo("prom16.source.CustomeSession") == 0) {
+                                } else if (objTempInstance.getClass().getTypeName().compareTo("controlleur.source.CustomSession") == 0) {
                                     isSession = true;
                                     idParamSession = i;
-                                    objValeur[i] = Reflection.castParameter(null,
+                                    objValeur[i] = Reflect.castParameter(null,
                                             objParametre[i].getParameterizedType().getTypeName());
                                 } else {
                                     int verif = 0;
@@ -367,35 +258,35 @@ public class FrontController extends HttpServlet {
                                         String paramName = reqParametre2.nextElement();
                                         if (objParametre[i].isAnnotationPresent(Param.class)) {
                                             if (objParametre[i].getAnnotation(Param.class).value().compareTo(paramName) == 0) {
-                                                objValeur[i] = Reflection.castParameter(req.getParameter(paramName),objParametre[i].getParameterizedType().getTypeName());
+                                                objValeur[i] = Reflect.castParameter(req.getParameter(paramName),objParametre[i].getParameterizedType().getTypeName());
                                                 verif++;
                                                 break;
                                             }
                                         } else {
                                             this.setStatusCode("400");
-                                            throw new Exception("ETU002401 il n'y a pas de parametre sur cette methode");
+                                            throw new Exception("ETU002404 , il n'y a pas de parametre sur cette methode");
                                         }
                                     }
                                     if (verif == 0) {
-                                        objValeur[i] = Reflection.castParameter(null,objParametre[i].getParameterizedType().getTypeName());
+                                        objValeur[i] = Reflect.castParameter(null,objParametre[i].getParameterizedType().getTypeName());
                                     }
                                 }
                             }
                         }
 
                         if (isSession) {
-                            Class<?> objTemp = Reflection.getClassForName(objParametre[idParamSession].getParameterizedType().getTypeName());
+                            Class<?> objTemp = Reflect.getClassForName(objParametre[idParamSession].getParameterizedType().getTypeName());
                             Object objTempInstance = objTemp.getDeclaredConstructor().newInstance();
-                            CustomeSession session = (CustomeSession) objTempInstance;
+                            CustomSession session = (CustomSession) objTempInstance;
                             session.setSession(req.getSession());
                             objValeur[idParamSession] = session;
                         }
                         
-                        String reponse = Reflection.execMethodeController(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), objValeur); 
+                        String reponse = Reflect.execMethodeController(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), objValeur); 
                         
-                        if (Reflection.isRestAPI(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName())) {
-                            if (reponse.compareTo("prom16.fonction.ModelView") == 0) {
-                                ModelView mv = (ModelView) Reflection.execMethode(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), objValeur);
+                        if (Reflect.isRestAPI(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName())) {
+                            if (reponse.compareTo("controlleur.fonction.ModelView") == 0) {
+                                ModelView mv = (ModelView) Reflect.execMethode(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), objValeur);
                                 String jsonResponse = gson.toJson(mv.getData());
                                 req.setAttribute("baseUrl", nameProjet);
                                 description = jsonResponse;
@@ -405,53 +296,26 @@ public class FrontController extends HttpServlet {
                             }
                             res.setContentType("text/json");
                         } else {
-                            if (reponse.compareTo("prom16.fonction.ModelView") == 0) {
-                                ModelView mv = (ModelView) Reflection.execMethode(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), objValeur);
+                            if (reponse.compareTo("controlleur.fonction.ModelView") == 0) {
+                                ModelView mv = (ModelView) Reflect.execMethode(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), objValeur);
                                 String cleHash = "";
-                                String referer = "";
                                 Object valueHash = new Object();
                                 for (String cles : mv.getData().keySet()) {
                                     cleHash = cles;
                                     valueHash = mv.getData().get(cles);
-                                    if (cleHash.equals("referer")) {
-                                        referer = (String)mv.getData().get(cleHash);
-                                    }else{
-                                        req.setAttribute(cleHash, valueHash);
-                                    }
+                                    req.setAttribute(cleHash, valueHash);
                                 }
                                 req.setAttribute("baseUrl", nameProjet);
-                                if (verifErreur != 0) {
-                                    for (int j = 0; j < reqParametreString.size(); j++) {     
-                                        String paramName = reqParametreString.get(j);
-                                        req.setAttribute(paramName,req.getParameter(paramName));
-                                    }
-
-                                    if (referer != null && !referer.isEmpty()) {
-                                        req.setAttribute("baseUrl", nameProjet);
-
-                                        for (Map.Entry<String, List<String>> entree : mapErreur.entrySet()) {
-                                            String cle = entree.getKey();
-                                            List<String> valeur = entree.getValue();
-                                            req.setAttribute(cle, valeur);
-                                        }
-
-                                        req.getServletContext().getRequestDispatcher(referer).forward(req, res);
-                                    } else {
-                                        this.setStatusCode("405");
-                                        throw new Exception("Erreur : Aucun referer trouvé dans la requête.");
-                                    }
-                                }else{
-                                    req.getServletContext().getRequestDispatcher(mv.getUrl()).forward(req, res);
-                                }
+                                req.getServletContext().getRequestDispatcher(mv.getUrl()).forward(req, res);
                             } else {
                                 description += reponse;
                             }
                         }
                     } else {
-                        String reponse = Reflection.execMethodeController(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), null);
-                        if (Reflection.isRestAPI(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName())) {
-                            if (reponse.compareTo("prom16.fonction.ModelView") == 0) {
-                                ModelView mv = (ModelView) Reflection.execMethode(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), null);
+                        String reponse = Reflect.execMethodeController(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), null);
+                        if (Reflect.isRestAPI(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName())) {
+                            if (reponse.compareTo("controlleur.fonction.ModelView") == 0) {
+                                ModelView mv = (ModelView) Reflect.execMethode(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), null);
                                 String jsonResponse = gson.toJson(mv.getData());
                                 req.setAttribute("baseUrl", nameProjet);
                                 description = jsonResponse;
@@ -461,8 +325,8 @@ public class FrontController extends HttpServlet {
                             }
                             res.setContentType("text/json");
                         } else {
-                            if (reponse.compareTo("prom16.fonction.ModelView") == 0) {
-                                ModelView mv = (ModelView) Reflection.execMethode(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), null);
+                            if (reponse.compareTo("controlleur.fonction.ModelView") == 0) {
+                                ModelView mv = (ModelView) Reflect.execMethode(objInstance,value.getVerbeAction().get(idVerbeMethode).getMethodName(), null);
                                 String cleHash = "";
                                 Object valueHash = new Object();
                                 for (String cles : mv.getData().keySet()) {
