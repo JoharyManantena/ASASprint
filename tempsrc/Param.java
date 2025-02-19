@@ -5,9 +5,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-@Target(ElementType.METHOD)
+@Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Url {
-    String value();
+public @interface Param {
+    String value(); // Ceci doit être spécifié pour que l'annotation fonctionne correctement
 }
-
