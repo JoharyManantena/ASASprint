@@ -1,24 +1,17 @@
 package prom16.fonction;
 
+import java.util.*;
+
 public class Mapping {
     String className;
-    String methodName;
-    String verb;
+    List<VerbAction> verbeAction = new ArrayList<>();
 
-    public Mapping(){}
+    public Mapping(){
 
-    public Mapping(String className, String methodName, String verb) {
+    }
+
+    public Mapping(String className) {
         this.setClassName(className);
-        this.setMethodName(methodName);
-        this.setVerb(verb);
-    }
-
-    public String getMethodName() {
-        return methodName;
-    }
-
-    public void setMethodName(String methodName) {
-        this.methodName = methodName;
     }
 
     public String getClassName() {
@@ -27,13 +20,28 @@ public class Mapping {
 
     public void setClassName(String className) {
         this.className = className;
-    }    
-
-    public String getVerb() {
-        return verb;
+    }  
+    
+    
+    public List<VerbAction> getVerbeAction() {
+        return verbeAction;
     }
 
-    public void setVerb(String verb) {
-        this.verb = verb;
+    public void setVerbeAction(List<VerbAction> verbeAction) {
+        this.verbeAction = verbeAction;
+    }
+
+    public void addVerbAction(VerbAction verbe){
+        this.verbeAction.add(verbe);
+    }
+
+    public boolean contains(VerbAction verbMethode){
+        boolean valiny = false;
+        for (VerbAction verbAct : this.verbeAction) {
+            if ((verbAct.getMethodName().equals(verbMethode.getMethodName())) && (verbAct.getVerb().equals(verbMethode.getVerb()))) {
+                valiny = true;
+            }
+        }
+        return valiny;
     }
 }

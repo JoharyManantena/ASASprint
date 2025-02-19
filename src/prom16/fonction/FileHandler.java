@@ -7,10 +7,9 @@ public class FileHandler {
 
     @FileValidator(maxSize = 5242880, allowedTypes = {"image/png", "image/jpeg"})
     public static void validateFile(Part part) throws Exception {
-        String fileName = extractFileName(part);
-        
+        // String fileName = extractFileName(part);
         // Call to reflect validation logic
-        Reflect.validateFileWithAnnotation(part, fileName, FileHandler.class.getMethod("validateFile", Part.class));
+        // Reflect.validateFileWithAnnotation(part, fileName, FileHandler.class.getMethod("validateFile", Part.class));
     }
 
     public static String extractFileName(Part part) {
