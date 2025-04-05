@@ -53,10 +53,10 @@ if %errorlevel% neq 0 (
 
 echo [INFO] Le fichier JAR %Sals%.jar a ete cree avec succes.
 
-rem Suppression du dossier temporaire
-popd
-rd /S /Q "%tempsrc%"
-echo [INFO] Le dossier %tempsrc% et son contenu ont ete supprimes avec succes.
+@REM rem Suppression du dossier temporaire
+@REM popd
+@REM rd /S /Q "%tempsrc%"
+@REM echo [INFO] Le dossier %tempsrc% et son contenu ont ete supprimes avec succes.
 
 rem Verification et confirmation de la creation du JAR
 if exist "lib\%Sals%.jar" (
