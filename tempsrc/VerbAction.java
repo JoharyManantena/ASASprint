@@ -1,10 +1,10 @@
 package prom16.fonction;
 
-public class VERBmethod {
+public class VerbAction {
     String methodName;
     String verb;//Soit 'GET' ou 'POST' en majuscule
 
-    public VERBmethod() {
+    public VerbAction() {
     }
 
     public String getMethodName() {
@@ -23,7 +23,7 @@ public class VERBmethod {
         this.verb = verb;
     }
 
-    public VERBmethod(String methodName, String verb) {
+    public VerbAction(String methodName, String verb) {
         this.setMethodName(methodName);
         this.setVerb(verb);
     }
