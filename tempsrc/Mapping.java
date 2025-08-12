@@ -4,7 +4,7 @@ import java.util.*;
 
 public class Mapping {
     String className;
-    List<VERBmethod> verbeAction = new ArrayList<>();
+    List<VerbAction> verbeAction = new ArrayList<>();
 
     public Mapping(){
 
@@ -23,22 +23,22 @@ public class Mapping {
     }  
     
     
-    public List<VERBmethod> getVerbeAction() {
+    public List<VerbAction> getVerbeAction() {
         return verbeAction;
     }
 
-    public void setVerbeAction(List<VERBmethod> verbeAction) {
+    public void setVerbeAction(List<VerbAction> verbeAction) {
         this.verbeAction = verbeAction;
     }
 
-    public void addVERBmethod(VERBmethod verbe){
+    public void addVerbAction(VerbAction verbe){
         this.verbeAction.add(verbe);
     }
 
-    public boolean contains(VERBmethod VERBmethode){
+    public boolean contains(VerbAction verbMethode){
         boolean valiny = false;
-        for (VERBmethod verbAct : this.verbeAction) {
-            if ((verbAct.getMethodName().equals(VERBmethode.getMethodName())) && (verbAct.getVerb().equals(VERBmethode.getVerb()))) {
+        for (VerbAction verbAct : this.verbeAction) {
+            if ((verbAct.getMethodName().equals(verbMethode.getMethodName())) && (verbAct.getVerb().equals(verbMethode.getVerb()))) {
                 valiny = true;
             }
         }

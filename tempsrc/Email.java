@@ -1,10 +1,12 @@
 package prom16.annotation;
 
-import java.lang.annotation.*;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-@Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
+@Retention(RetentionPolicy.RUNTIME)
 public @interface Email {
-    String message() default "Invalid email format";
-    String pattern() default "^[A-Za-z0-9+_.-]+@(.+)$";
+    
 }
